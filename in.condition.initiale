@@ -126,6 +126,7 @@ pair_style      granular
 pair_coeff      * * hooke ${k_n} ${eps} damping coeff_restitution tangential linear_history ${k_t} ${x_t} ${mu_s} rolling none twisting none
 
 fix             floor_freeze floor_atoms freeze
+fix             z_bottom_wall grains wall/gran granular hooke ${k_n} ${eps} damping coeff_restitution tangential linear_history ${k_t} ${x_t} ${mu_s} rolling none twisting none zplane NULL ${boxz}
 
 neighbor        ${skin} bin
 neigh_modify    delay 0 every 1 check yes
@@ -158,16 +159,18 @@ velocity        grains set 0.0 0.0 0.0 units box
 velocity        floor_atoms set 0.0 0.0 0.0 units box
 
 # 5) Creation des bonds cohesifs entre grains mobiles proches
-special_bonds   lj 0.0 1.0 1.0 coul 0.0 1.0 1.0
-create_bonds    many grains grains 1 0.0 ${d_max_bond}
-special_bonds   lj 0.0 1.0 1.0 coul 1.0 1.0 1.0
 
-bond_style      bpm/rotational store/local brkbond 100 time id1 id2 overlay/pair no smooth yes
-bond_coeff      1 ${k_r_bond} ${k_s_bond} ${k_t_bond} ${k_b_bond} ${fo_r_c} ${fo_s_c} ${tau_t_c} ${tau_b_c} ${gamma_n_bond} ${gamma_r_bond} ${gamma_s_bond} ${gamma_t_bond}
+#special_bonds   lj 0.0 1.0 1.0 coul 0.0 1.0 1.0
+#create_bonds    many grains grains 1 0.0 ${d_max_bond}
+#special_bonds   lj 0.0 1.0 1.0 coul 1.0 1.0 1.0
 
-compute         nbond all nbond/atom
-compute         tbond all reduce sum c_nbond
-thermo_style    custom step atoms ke c_tbond
+#bond_style      bpm/rotational store/local brkbond 100 time id1 id2 overlay/pair no smooth yes
+#bond_coeff      1 ${k_r_bond} ${k_s_bond} ${k_t_bond} ${k_b_bond} ${fo_r_c} ${fo_s_c} ${tau_t_c} ${tau_b_c} ${gamma_n_bond} ${gamma_r_bond} ${gamma_s_bond} ${gamma_t_bond}
+
+#compute         nbond all nbond/atom
+#compute         tbond all reduce sum c_nbond
+
+thermo_style    custom step atoms ke  #c_tbond
 thermo          1
 run             0
 
@@ -175,3 +178,12 @@ run             0
 write_data     /home/stages/Documents/lammps_examples/essai_5/data/condition_initiale_grid_random.data
 
 print "---------------> FIN SOUS-SIMULATION 1 : RESTART ECRIT <---------------"
+
+# On sauve une condition initiale facile a relire: timestep 0
+reset_timestep  0
+dump            d_final all custom 1 data/grains_stable.dump id type radius x y z vx vy vz
+dump_modify     d_final sort id
+run             0
+undump          d_final
+
+print "Condition initiale sauvegardee dans data/grains_stable.dump au timestep 0"

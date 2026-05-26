@@ -12,7 +12,7 @@ restart.*
 *.vtk
 
 # Temporary files
-*.tmp
+*.tmpgit
 *.bak
 *~
 
