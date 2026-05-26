@@ -1,0 +1,26 @@
+# LAMMPS output files
+log.lammps
+log.*
+dump.*
+*.dump
+*.lammpstrj
+restart.*
+*.restart
+
+# OVITO / visualization
+*.ovito
+*.vtk
+
+# Temporary files
+*.tmp
+*.bak
+*~
+
+# Python cache nếu có script Python
+__pycache__/
+*.pyc
+
+# Large data/output folders
+outputs/
+results/
+data_output/

@@ -1,0 +1,181 @@
+# -----------------------------------------------------------------------------
+# SOUS-SIMULATION 1 : CONDITION INITIALE
+# Objectif : creer le lit de grains sur une grille, perturber aleatoirement,
+# stabiliser, creer les bonds cohesifs, puis sauvegarder un restart.
+# -----------------------------------------------------------------------------
+
+variable        name string impact_grid_random
+
+# Dimensions de la boite en nombre de diametres
+variable        z_d equal 40.0
+variable        x_d equal 30.0
+variable        y_d equal 30.0
+
+# Grains
+variable        diam    equal 0.0008
+variable        rho     equal 2650
+variable        grav    equal 9.81
+variable        grav_relax_fast equal 9.81  # gravity stable pour relaxation; eviter acceleration trop forte
+variable        delta_d equal 0.05
+variable        random_seed equal 10101010
+
+variable        d_min equal ${diam} - ${delta_d}/2
+variable        d_max equal ${diam} + ${delta_d}/2
+
+# Parametres contact granulaire
+variable        k_n     equal 263000
+variable        eps     equal 0.24
+variable        x_t     equal 1
+variable        y_t     equal 2.0/7.0
+variable        mu_s    equal 0.4
+
+# Parametres des bonds / cohesion
+variable        d_max_bond  equal 1.08*${diam}
+variable        B_d         equal 1000
+variable        delta_bond  equal 0.01*${diam}
+
+# Temps / sorties
+variable        prefact_dt  equal 0.05
+variable        n_dump      equal 50
+variable        n_print     equal 1000
+variable        t_ad_relax  equal 8.0
+
+# Echelles particules
+variable        vol_part equal (4.0/3.0)*PI*(${diam}/2.0)^3
+variable        mass     equal ${rho}*${vol_part}
+variable        mff      equal ${mass}/2.0
+variable        k_t      equal ${y_t}*${k_n}
+variable        t_c      equal PI*sqrt((${mff}/${k_n})*(1.0+ln(${eps}/PI)^2))
+variable        dt       equal ${prefact_dt}*${t_c}
+variable        tim_0    equal sqrt(${diam}/${grav})
+variable        Nrelax   equal ceil(${t_ad_relax}*${tim_0}/${dt})
+variable        skin     equal 1.0*${diam}
+variable        comm_cut equal 8.0*${diam}   # large communication cutoff for bpm/rotational bonds
+
+# Geometrie
+variable        boxx     equal ${x_d}*${diam}
+variable        boxy     equal ${y_d}*${diam}
+variable        boxz     equal ${z_d}*${diam}
+
+# Grille + perturbation aleatoire
+variable        lat_sp   equal 1.15*${diam}
+variable        rand_amp equal 0.1*${diam}
+variable        bed_top  equal 18.0*${diam}
+
+# Parametres mecaniques des bonds
+variable        grain_weight equal ${mass}*${grav}
+variable        F_c equal ${B_d}*${grain_weight}
+variable        k_r_bond equal ${F_c}/${delta_bond}
+variable        fo_r_c equal ${F_c}
+variable        k_s_bond equal 0.5*${k_r_bond}
+variable        fo_s_c equal 0.25*${fo_r_c}
+variable        k_b_bond equal 0.1*${k_r_bond}*${diam}^2
+variable        tau_b_c equal 0.5*${fo_r_c}*${diam}
+variable        k_t_bond equal 0.1*${k_b_bond}
+variable        tau_t_c equal 0.25*${fo_r_c}*${diam}
+variable        gamma_n_bond equal 0
+variable        gamma_s_bond equal 0
+variable        gamma_r_bond equal 0
+variable        gamma_t_bond equal 0
+
+print "CI : dt=${dt}, Nrelax=${Nrelax}, d_max_bond=${d_max_bond}, F_c=${F_c}"
+
+# Initialisation LAMMPS
+atom_style      sphere
+units           si
+boundary        p p f
+newton          on off
+# comm_modify doit etre place APRES create_box, sinon create_box peut reinitialiser le cutoff de communication
+
+region          boxreg block 0 ${boxx} 0 ${boxy} 0 ${boxz}
+# create_box      3 boxreg bond/types 1 extra/bond/per/atom 30 extra/special/per/atom 80
+create_box      3 boxreg 
+
+
+# Important : a placer apres create_box pour que LAMMPS garde bien un cutoff de communication suffisant pour les bonds
+comm_modify     vel yes 
+
+# v4: relaxation stabilisee: p p f, boite z plus haute, gravity normale, damping visqueux, dt reduit
+
+# 1) Couche fixe au fond
+lattice         diamond ${lat_sp}
+
+region          bot_layer block 0 ${boxx} 0 ${boxy} 0 ${diam} units box
+create_atoms    1 region bot_layer units box
+set             type 1 diameter ${diam}
+set             type 1 density ${rho}
+group           floor_atoms type 1
+
+# 2) Lit de grains cree sur grille
+variable new_x equal ${boxx} - ${diam} 
+variable new_y equal ${boxy} - ${diam} 
+lattice         sc ${lat_sp}
+variable        new_z equal 2*${diam} 
+region          bedreg block  ${diam} ${new_x} ${diam}  ${new_y} ${new_z} ${bed_top} units box
+create_atoms    2 region bedreg units box
+set             type 2 diameter ${diam}
+set             type 2 density ${rho}
+group           grains type 2
+
+# 3) Perturbation aleatoire pour casser la grille parfaite
+# Remarque : var_diam est defini mais non utilise ici. On garde un diametre constant.
+variable        var_diam atom random(${d_min},${d_max},${random_seed})
+set             group grains diameter ${diam} density ${rho}
+displace_atoms  grains random ${rand_amp} ${rand_amp} ${rand_amp}  ${random_seed} units box
+velocity        grains set 0.0 0.0 -0.05 units box
+velocity        floor_atoms set 0.0 0.0 0.0 units box
+
+# Contacts granulaires
+pair_style      granular
+pair_coeff      * * hooke ${k_n} ${eps} damping coeff_restitution tangential linear_history ${k_t} ${x_t} ${mu_s} rolling none twisting none
+
+fix             floor_freeze floor_atoms freeze
+fix             z_bottom_wall grains wall/gran granular hooke ${k_n} ${eps} damping coeff_restitution tangential linear_history ${k_t} ${x_t} ${mu_s} rolling none twisting none zplane NULL ${boxz}
+neighbor        ${skin} bin
+neigh_modify    delay 0 every 1 check yes exclude type 1 1
+
+timestep        ${dt}
+thermo_style    custom step atoms ke
+thermo_modify   lost error
+thermo          ${n_print}
+timer           full
+
+# 4) Relaxation du lit de grains avant creation des bonds
+fix             int_relax grains nve/sphere
+fix             grav_relax grains gravity ${grav_relax_fast} vector 0 0 -1
+
+
+dump            d_relax all custom ${n_dump} data/CI_grid_random_relax.dump id type radius x y z vx vy vz
+dump_modify     d_relax sort id
+
+print "---------------> SOUS-SIMULATION 1 : RELAXATION CONDITION INITIALE <---------------"
+run             ${Nrelax}
+
+undump          d_relax
+unfix           int_relax
+unfix           grav_relax
+
+
+# On sauvegarde une condition initiale propre : pas de vitesse residuelle
+reset_timestep  0
+velocity        grains set 0.0 0.0 0.0 units box
+velocity        floor_atoms set 0.0 0.0 0.0 units box
+
+# 5) Creation des bonds cohesifs entre grains mobiles proches
+special_bonds   lj 0.0 1.0 1.0 coul 0.0 1.0 1.0
+create_bonds    many grains grains 1 0.0 ${d_max_bond}
+special_bonds   lj 0.0 1.0 1.0 coul 1.0 1.0 1.0
+
+bond_style      bpm/rotational store/local brkbond 100 time id1 id2 overlay/pair no smooth yes
+bond_coeff      1 ${k_r_bond} ${k_s_bond} ${k_t_bond} ${k_b_bond} ${fo_r_c} ${fo_s_c} ${tau_t_c} ${tau_b_c} ${gamma_n_bond} ${gamma_r_bond} ${gamma_s_bond} ${gamma_t_bond}
+
+compute         nbond all nbond/atom
+compute         tbond all reduce sum c_nbond
+thermo_style    custom step atoms ke c_tbond
+thermo          1
+run             0
+
+# 6) Sauvegarde de la condition initiale pour la sous-simulation 2
+# Sauvegardes relatives pour rester dans le dossier courant du calcul
+write_data     /home/stages/Documents/lammps_examples/essai_5/data/condition_initiale_grid_random.data
+print "---------------> FIN SOUS-SIMULATION 1 : CONDITION INITIALE ECRITE <---------------"
