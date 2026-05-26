@@ -16,7 +16,7 @@ variable        diam    equal 0.0008
 variable        rho     equal 2650
 variable        grav    equal 9.81
 variable        grav_drop equal 12.0
-variable        delta_d equal 0.05
+variable        delta_d equal 0.05*${diam}
 variable        random_seed equal 10101010
 
 variable        d_min equal ${diam} - ${delta_d}/2
@@ -102,8 +102,8 @@ set             type 1 density ${rho}
 group           floor_atoms type 1
 
 # 2) Lit de grains cree sur grille
-variable        new_x equal ${boxx} - ${diam} 
-variable        new_y equal ${boxy} - ${diam} 
+variable        new_x equal ${boxx}
+variable        new_y equal ${boxy} 
 lattice         sc ${lat_sp}
 variable        new_z equal 2*${diam} 
 region          bedreg block  ${diam} ${new_x} ${diam}  ${new_y} ${new_z} ${bed_top} units box
@@ -181,7 +181,7 @@ print "---------------> FIN SOUS-SIMULATION 1 : RESTART ECRIT <---------------"
 
 # On sauve une condition initiale facile a relire: timestep 0
 reset_timestep  0
-dump            d_final all custom 1 data/grains_stable.dump id type radius x y z vx vy vz
+dump            d_final all custom 1 data/grains_stable.dump id type radius x y z density
 dump_modify     d_final sort id
 run             0
 undump          d_final

@@ -61,12 +61,12 @@ variable        gamma_t_bond equal 0
 
 # Initialisation + lecture de la condition initiale
 units           si
-atom_style      bpm/sphere
+atom_style      sphere
 boundary        f f f
 newton          on off
 comm_modify     vel yes
 
-read_data     /home/stages/Documents/lammps_examples/essai_5/data/condition_initiale_grid_random.data
+read_dump     /home/stages/Documents/lammps_examples/essai_5/data/condition_initiale_grid_random.data
 
 # Les groupes ne doivent pas etre supposes actifs apres read_data : on les recree.
 group           floor_atoms type 1

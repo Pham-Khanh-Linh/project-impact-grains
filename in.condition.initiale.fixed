@@ -88,7 +88,6 @@ newton          on off
 # comm_modify doit etre place APRES create_box, sinon create_box peut reinitialiser le cutoff de communication
 
 region          boxreg block 0 ${boxx} 0 ${boxy} 0 ${boxz}
-# create_box      3 boxreg bond/types 1 extra/bond/per/atom 30 extra/special/per/atom 80
 create_box      3 boxreg 
 
 
@@ -109,7 +108,7 @@ group           floor_atoms type 1
 # 2) Lit de grains cree sur grille
 variable new_x equal ${boxx} - ${diam} 
 variable new_y equal ${boxy} - ${diam} 
-lattice         sc ${lat_sp}
+lattice         diamond ${lat_sp}
 variable        new_z equal 2*${diam} 
 region          bedreg block  ${diam} ${new_x} ${diam}  ${new_y} ${new_z} ${bed_top} units box
 create_atoms    2 region bedreg units box
@@ -162,16 +161,17 @@ velocity        grains set 0.0 0.0 0.0 units box
 velocity        floor_atoms set 0.0 0.0 0.0 units box
 
 # 5) Creation des bonds cohesifs entre grains mobiles proches
-special_bonds   lj 0.0 1.0 1.0 coul 0.0 1.0 1.0
-create_bonds    many grains grains 1 0.0 ${d_max_bond}
-special_bonds   lj 0.0 1.0 1.0 coul 1.0 1.0 1.0
+#special_bonds   lj 0.0 1.0 1.0 coul 0.0 1.0 1.0
+c#reate_bonds    many grains grains 1 0.0 ${d_max_bond}
+#special_bonds   lj 0.0 1.0 1.0 coul 1.0 1.0 1.0
 
-bond_style      bpm/rotational store/local brkbond 100 time id1 id2 overlay/pair no smooth yes
-bond_coeff      1 ${k_r_bond} ${k_s_bond} ${k_t_bond} ${k_b_bond} ${fo_r_c} ${fo_s_c} ${tau_t_c} ${tau_b_c} ${gamma_n_bond} ${gamma_r_bond} ${gamma_s_bond} ${gamma_t_bond}
+#bond_style      bpm/rotational store/local brkbond 100 time id1 id2 overlay/pair no smooth yes
+b#ond_coeff      1 ${k_r_bond} ${k_s_bond} ${k_t_bond} ${k_b_bond} ${fo_r_c} ${fo_s_c} ${tau_t_c} ${tau_b_c} ${gamma_n_bond} ${gamma_r_bond} ${gamma_s_bond} ${gamma_t_bond}
 
-compute         nbond all nbond/atom
-compute         tbond all reduce sum c_nbond
-thermo_style    custom step atoms ke c_tbond
+#compute         nbond all nbond/atom
+#compute         tbond all reduce sum c_nbond
+
+thermo_style    custom step atoms ke #c_tbond
 thermo          1
 run             0
 
