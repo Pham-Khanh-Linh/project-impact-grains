@@ -135,7 +135,7 @@ fix             int_relax grains nve/sphere
 fix             grav_relax grains gravity ${grav_drop} vector 0 0 -1
 
 
-dump            d_relax all custom ${n_dump} data/grid_random.dump id type diameter x y z vx vy vz
+dump            d_relax all custom ${n_dump} data/grid_random.dump id type radius x y z 
 dump_modify     d_relax sort id
 
 print "---------------> SOUS-SIMULATION 1 : RELAXATION CONDITION INITIALE <---------------"
@@ -158,9 +158,13 @@ print "---------------> FIN SOUS-SIMULATION 1 : RESTART ECRIT <---------------"
 
 # On sauve une condition initiale facile a relire: timestep 0
 reset_timestep  0
-dump            d_final all custom 1 data/grains_stable.dump id type diameter x y z vx vy vz
+dump            d_final all custom 1 data/grains_stable.dump id type radius x y z 
 dump_modify     d_final sort id
 run             0
 undump          d_final
+
+#reset_timestep  0
+#run             0
+#write_restart /home/stages/Documents/lammps_examples/essai_5/data/grains_stable.data
 
 print "Condition initiale sauvegardee dans data/grains_stable.dump au timestep 0"
