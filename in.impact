@@ -62,23 +62,37 @@ variable        gamma_t_bond equal 0
 # Initialisation + lecture de la condition initiale
 units           si
 atom_style      sphere
-boundary        f f f
+boundary        p p f
 newton          on off
 comm_modify     vel yes
 
-read_dump     /home/stages/Documents/lammps_examples/essai_5/data/condition_initiale_grid_random.data
+# Define the simulation box
+region          boxreg block 0 ${boxx} 0 ${boxy} 0 ${boxz}
+create_box      3 boxreg
 
-# Les groupes ne doivent pas etre supposes actifs apres read_data : on les recree.
+read_dump /home/stages/Documents/lammps_examples/essai_5/data/grains_stable.dump 0 type diameter x y z vx vy vz box yes add yes
+# Les groupes ne doivent pas etre supposes actifs apres read_dump : on les recree.
 group           floor_atoms type 1
+
 group           grains type 2
+# Enable special bonds for bonded particles
+special_bonds   lj 0.0 1.0 1.0 coul 0.0 1.0 1.0
+# Create bonds between particles in the grains group within a distance of ${d_max_bond}
+create_bonds    many grains grains 1 0.0 ${d_max_bond}
+# Restore default special bonds settings
+special_bonds   lj 0.0 1.0 1.0 coul 1.0 1.0 1.0
+
+# Create bonds between floor_atoms and grains
+create_bonds    many floor_atoms grains 2 0.0 ${d_max_bond}
+# Define bond style for cohesive bonds
+bond_style      bpm/rotational store/local brkbond 100 time id1 id2 overlay/pair no smooth yes
+# Set bond coefficients for the bonds
+bond_coeff      all ${k_r_bond} ${k_s_bond} ${k_t_bond} ${k_b_bond} ${fo_r_c} ${fo_s_c} ${tau_t_c} ${tau_b_c} ${gamma_n_bond} ${gamma_r_bond} ${gamma_s_bond} ${gamma_t_bond}
+
 
 # Contacts et bonds : on les redefinit pour etre explicite et reproductible.
 pair_style      granular
 pair_coeff      * * hooke ${k_n} ${eps} damping coeff_restitution tangential linear_history ${k_t} ${x_t} ${mu_s} rolling none twisting none
-
-special_bonds   lj 0.0 1.0 1.0 coul 1.0 1.0 1.0
-bond_style      bpm/rotational store/local brkbond 100 time id1 id2 overlay/pair no smooth yes
-bond_coeff      1 ${k_r_bond} ${k_s_bond} ${k_t_bond} ${k_b_bond} ${fo_r_c} ${fo_s_c} ${tau_t_c} ${tau_b_c} ${gamma_n_bond} ${gamma_r_bond} ${gamma_s_bond} ${gamma_t_bond}
 
 fix             floor_freeze floor_atoms freeze
 fix             box_walls all wall/reflect xlo EDGE xhi EDGE ylo EDGE yhi EDGE zlo EDGE
@@ -119,7 +133,7 @@ compute         tbond all reduce sum c_nbond
 thermo_style    custom step atoms ke c_tbond
 thermo          ${n_print}
 
-dump            d_impact all custom ${n_dump} data/impact_grid_random_from_CI.dump id type radius x y z vx vy vz c_nbond
+dump            d_impact all custom ${n_dump} data/impact_grid_random_from_CI.dump type diameter x y z vx vy vz c_nbond
 dump_modify     d_impact sort id
 
 fix             int_mobile mobile nve/bpm/sphere

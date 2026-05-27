@@ -16,7 +16,7 @@ variable        diam    equal 0.0008
 variable        rho     equal 2650
 variable        grav    equal 9.81
 variable        grav_drop equal 12.0
-variable        delta_d equal 0.05*${diam}
+variable        delta_d equal 0.2*${diam}
 variable        random_seed equal 10101010
 
 variable        d_min equal ${diam} - ${delta_d}/2
@@ -86,10 +86,7 @@ boundary        p p f
 newton          on off
 comm_modify     vel yes
 
-
-
 region          boxreg block 0 ${boxx} 0 ${boxy} 0 ${boxz}
-# create_box      3 boxreg bond/types 1 extra/bond/per/atom 30 extra/special/per/atom 80
 create_box      3 boxreg
 
 
@@ -97,8 +94,8 @@ create_box      3 boxreg
 lattice         sc ${lat_sp}
 region          bot_layer block 0 ${boxx} 0 ${boxy} 0 ${diam} units box
 create_atoms    1 region bot_layer units box
-set             type 1 diameter ${diam}
-set             type 1 density ${rho}
+#set             type 1 diameter ${diam}
+#set             type 1 density ${rho}
 group           floor_atoms type 1
 
 # 2) Lit de grains cree sur grille
@@ -109,8 +106,8 @@ variable        new_z equal 2*${diam}
 region          bedreg block  ${diam} ${new_x} ${diam}  ${new_y} ${new_z} ${bed_top} units box
 
 create_atoms    2 region bedreg units box
-set             type 2 diameter ${diam}
-set             type 2 density ${rho}
+#et             type 2 diameter ${diam}
+#set             type 2 density ${rho}
 group           grains type 2
 
 # 3) Perturbation aleatoire pour casser la grille parfaite
@@ -141,8 +138,7 @@ timer           full
 fix             int_relax grains nve/sphere
 fix             grav_relax grains gravity ${grav_drop} vector 0 0 -1
 
-
-dump            d_relax all custom ${n_dump} data/grid_random.dump id type radius x y z vx vy vz
+dump            d_relax all custom ${n_dump} data/grid_random.dump id x y z type radius
 dump_modify     d_relax sort id
 
 print "---------------> SOUS-SIMULATION 1 : RELAXATION CONDITION INITIALE <---------------"
@@ -158,19 +154,7 @@ reset_timestep  0
 velocity        grains set 0.0 0.0 0.0 units box
 velocity        floor_atoms set 0.0 0.0 0.0 units box
 
-# 5) Creation des bonds cohesifs entre grains mobiles proches
-
-#special_bonds   lj 0.0 1.0 1.0 coul 0.0 1.0 1.0
-#create_bonds    many grains grains 1 0.0 ${d_max_bond}
-#special_bonds   lj 0.0 1.0 1.0 coul 1.0 1.0 1.0
-
-#bond_style      bpm/rotational store/local brkbond 100 time id1 id2 overlay/pair no smooth yes
-#bond_coeff      1 ${k_r_bond} ${k_s_bond} ${k_t_bond} ${k_b_bond} ${fo_r_c} ${fo_s_c} ${tau_t_c} ${tau_b_c} ${gamma_n_bond} ${gamma_r_bond} ${gamma_s_bond} ${gamma_t_bond}
-
-#compute         nbond all nbond/atom
-#compute         tbond all reduce sum c_nbond
-
-thermo_style    custom step atoms ke  #c_tbond
+thermo_style    custom step atoms ke  
 thermo          1
 run             0
 
@@ -181,7 +165,7 @@ print "---------------> FIN SOUS-SIMULATION 1 : RESTART ECRIT <---------------"
 
 # On sauve une condition initiale facile a relire: timestep 0
 reset_timestep  0
-dump            d_final all custom 1 data/grains_stable.dump id type radius x y z density
+dump            d_final all custom 1 data/grains_stable.dump id x y z type radius
 dump_modify     d_final sort id
 run             0
 undump          d_final
