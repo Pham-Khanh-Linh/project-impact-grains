@@ -7,9 +7,9 @@
 variable        name string impact_grid_random
 
 # Dimensions de la boite en nombre de diametres
-variable        z_d equal 40.0
-variable        x_d equal 30.0
-variable        y_d equal 30.0
+variable        z_d equal 21.5
+variable        x_d equal 20.0
+variable        y_d equal 20.0
 
 # Grains
 variable        diam    equal 0.0008
@@ -48,7 +48,7 @@ variable        k_t      equal ${y_t}*${k_n}
 variable        t_c      equal PI*sqrt((${mff}/${k_n})*(1.0+ln(${eps}/PI)^2))
 variable        dt       equal ${prefact_dt}*${t_c}
 variable        tim_0    equal sqrt(${diam}/${grav})
-variable        Nrelax   equal ceil(${t_ad_relax}*${tim_0}/${dt})
+variable        Nrelax   equal 2*ceil(${t_ad_relax}*${tim_0}/${dt})
 variable        skin     equal 1.0*${diam}
 
 # Geometrie
@@ -80,11 +80,13 @@ variable        gamma_t_bond equal 0
 print "CI : dt=${dt}, Nrelax=${Nrelax}, d_max_bond=${d_max_bond}, F_c=${F_c}"
 
 # Initialisation LAMMPS
-atom_style      sphere
+atom_style      bpm/sphere
 units           si
 boundary        p p f
 newton          on off
 comm_modify     vel yes
+
+
 
 region          boxreg block 0 ${boxx} 0 ${boxy} 0 ${boxz}
 create_box      3 boxreg
@@ -94,29 +96,23 @@ create_box      3 boxreg
 lattice         sc ${lat_sp}
 region          bot_layer block 0 ${boxx} 0 ${boxy} 0 ${diam} units box
 create_atoms    1 region bot_layer units box
-#set             type 1 diameter ${diam}
-#set             type 1 density ${rho}
 group           floor_atoms type 1
 
 # 2) Lit de grains cree sur grille
 variable        new_x equal ${boxx}
-variable        new_y equal ${boxy} 
+variable        new_y equal ${boxy}
 lattice         sc ${lat_sp}
 variable        new_z equal 2*${diam} 
 region          bedreg block  ${diam} ${new_x} ${diam}  ${new_y} ${new_z} ${bed_top} units box
 
 create_atoms    2 region bedreg units box
-#et             type 2 diameter ${diam}
-#set             type 2 density ${rho}
 group           grains type 2
 
 # 3) Perturbation aleatoire pour casser la grille parfaite
 # Remarque : var_diam est defini mais non utilise ici. On garde un diametre constant.
-variable        var_diam atom random(${d_min},${d_max},${random_seed})
-set             group grains diameter ${diam} density ${rho}
-displace_atoms  grains random ${rand_amp} ${rand_amp} ${rand_amp} ${random_seed} units box
-velocity        grains set 0.0 0.0 0.0 units box
-velocity        floor_atoms set 0.0 0.0 0.0 units box
+variable        random_diam atom random(${d_min},${d_max},${random_seed})
+set             group all diameter v_random_diam density ${rho} # for all particles
+
 
 # Contacts granulaires
 pair_style      granular
@@ -138,36 +134,37 @@ timer           full
 fix             int_relax grains nve/sphere
 fix             grav_relax grains gravity ${grav_drop} vector 0 0 -1
 
-dump            d_relax all custom ${n_dump} data/grid_random.dump id x y z type radius
+
+dump            d_relax all custom ${n_dump} data/grid_random.dump id type radius x y z 
 dump_modify     d_relax sort id
 
 print "---------------> SOUS-SIMULATION 1 : RELAXATION CONDITION INITIALE <---------------"
 run             ${Nrelax}
 
-undump          d_relax
-unfix           int_relax
-unfix           grav_relax
+# undump          d_relax
+# unfix           int_relax
+# unfix           grav_relax
 
 
 # On sauvegarde une condition initiale propre : pas de vitesse residuelle
-reset_timestep  0
-velocity        grains set 0.0 0.0 0.0 units box
-velocity        floor_atoms set 0.0 0.0 0.0 units box
+# reset_timestep  0
+# velocity        grains set 0.0 0.0 0.0 units box
+# velocity        floor_atoms set 0.0 0.0 0.0 units box
 
-thermo_style    custom step atoms ke  
-thermo          1
-run             0
-
-# 6) Sauvegarde de la condition initiale pour la sous-simulation 2
-write_data     /home/stages/Documents/lammps_examples/essai_5/data/condition_initiale_grid_random.data
+# thermo_style    custom step atoms ke 
+# run             0
 
 print "---------------> FIN SOUS-SIMULATION 1 : RESTART ECRIT <---------------"
 
 # On sauve une condition initiale facile a relire: timestep 0
 reset_timestep  0
-dump            d_final all custom 1 data/grains_stable.dump id x y z type radius
+dump            d_final all custom 1 data/grains_stable.dump id type radius x y z 
 dump_modify     d_final sort id
 run             0
 undump          d_final
+
+#reset_timestep  0
+#run             0
+write_data /home/stages/Documents/lammps_examples/condition_initiale/data/grains_stable.data
 
 print "Condition initiale sauvegardee dans data/grains_stable.dump au timestep 0"

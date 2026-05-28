@@ -9,8 +9,8 @@ variable        name string impact_grid_random_impact
 # Les memes parametres physiques doivent etre redefinis pour les styles, fixes,
 # timestep et calculs. La geometrie et les grains viennent du restart.
 variable        z_d equal 40.0
-variable        x_d equal 30.0
-variable        y_d equal 30.0
+variable        x_d equal 20.0
+variable        y_d equal 20.0
 
 variable        diam    equal 0.0008
 variable        rho     equal 2650
@@ -26,7 +26,7 @@ variable        d_max_bond  equal 1.08*${diam}
 variable        B_d         equal 1000
 variable        delta_bond  equal 0.01*${diam}
 
-variable        prefact_dt  equal 0.05
+variable        prefact_dt  equal 0.07
 variable        n_dump      equal 100
 variable        n_print     equal 1000
 
@@ -59,49 +59,29 @@ variable        gamma_s_bond equal 0
 variable        gamma_r_bond equal 0
 variable        gamma_t_bond equal 0
 
+
+
 # Initialisation + lecture de la condition initiale
-units           si
-atom_style      bpm/sphere
 boundary        p p f
 newton          on off
 comm_modify     vel yes
+units           si
+atom_style      bpm/sphere
+
 
 # Define the simulation box
 region          boxreg block 0 ${boxx} 0 ${boxy} 0 ${boxz}
 create_box      3 boxreg bond/types 2 extra/bond/per/atom 30 extra/special/per/atom 100
-#create_box      3 boxreg
 
-read_dump /home/stages/Documents/lammps_examples/essai_5/data/grid_random.dump 0 type x y z add yes box no
-#read_restart /home/stages/Documents/lammps_examples/essai_5/data/grains_stable.data
-
-
-# Les groupes ne doivent pas etre supposes actifs apres read_dump : on les recree.
+# read_dump /home/stages/Documents/lammps_examples/essai_5/data/grid_random.dump 0 type x y z add yes box no
+read_data /home/stages/Documents/lammps_examples/condition_initiale/data/grains_stable.data add append
 group           floor_atoms type 1
-
 group           grains type 2
 
-# Contacts et bonds : on les redefinit pour etre explicite et reproductible.
-pair_style      granular
-pair_coeff      * * hooke ${k_n} ${eps} damping coeff_restitution tangential linear_history ${k_t} ${x_t} ${mu_s} rolling none twisting none
-
-# Define bond style for cohesive bonds
-bond_style      bpm/rotational store/local brkbond 100 time id1 id2 overlay/pair no smooth yes
-# Set bond coefficients for the bonds
-bond_coeff      1 ${k_r_bond} ${k_s_bond} ${k_t_bond} ${k_b_bond} ${fo_r_c} ${fo_s_c} ${tau_t_c} ${tau_b_c} ${gamma_n_bond} ${gamma_r_bond} ${gamma_s_bond} ${gamma_t_bond}
-bond_coeff      2 ${k_r_bond} ${k_s_bond} ${k_t_bond} ${k_b_bond} ${fo_r_c} ${fo_s_c} ${tau_t_c} ${tau_b_c} ${gamma_n_bond} ${gamma_r_bond} ${gamma_s_bond} ${gamma_t_bond}
-# Restore default special bonds settings
-special_bonds   lj 0.0 1.0 1.0 coul 0.0 1.0 1.0
-
-# Create bonds between particles in the grains group within a distance of ${d_max_bond}
-create_bonds    many grains grains 1 0.0 ${d_max_bond}
-
-# Create bonds between floor_atoms and grains
-create_bonds    many floor_atoms grains 2 0.0 ${d_max_bond}
-
-#special_bonds   lj 0.0 1.0 1.0 coul 1.0 1.0 1.0 
 
 fix             floor_freeze floor_atoms freeze
-fix             box_walls all wall/reflect xlo EDGE xhi EDGE ylo EDGE yhi EDGE zlo EDGE
+fix             z_bottom_wall grains wall/gran granular hooke ${k_n} ${eps} damping coeff_restitution tangential linear_history ${k_t} ${x_t} ${mu_s} rolling none twisting none zplane NULL ${boxz}
+
 neighbor        ${skin} bin
 neigh_modify    delay 0 every 1 check yes
 
@@ -114,10 +94,25 @@ reset_timestep  0
 velocity        grains set 0.0 0.0 0.0 units box
 velocity        floor_atoms set 0.0 0.0 0.0 units box
 
+# Contacts et bonds : on les redefinit pour etre explicite et reproductible.
+pair_style      granular
+pair_coeff      * * hooke ${k_n} ${eps} damping coeff_restitution tangential linear_history ${k_t} ${x_t} ${mu_s} rolling none twisting none
+
+group all_grains union floor_atoms grains
+
+special_bonds   lj 0.0 1.0 1.0 coul 0.0 1.0 1.0
+create_bonds    many all_grains all_grains 1 0.0 ${d_max_bond}
+special_bonds   lj 0.0 1.0 1.0 coul 1.0 1.0 1.0
+
+bond_style      bpm/rotational store/local brkbond 100 time id1 id2 overlay/pair no smooth yes
+bond_coeff      1 ${k_r_bond} ${k_s_bond} ${k_t_bond} ${k_b_bond} ${fo_r_c} ${fo_s_c} ${tau_t_c} ${tau_b_c} ${gamma_n_bond} ${gamma_r_bond} ${gamma_s_bond} ${gamma_t_bond}
+bond_coeff      2 ${k_r_bond} ${k_s_bond} ${k_t_bond} ${k_b_bond} ${fo_r_c} ${fo_s_c} ${tau_t_c} ${tau_b_c} ${gamma_n_bond} ${gamma_r_bond} ${gamma_s_bond} ${gamma_t_bond}
+
+
 # Creation de la sphere impactante au-dessus du lit
 variable        D_sphere equal 5.0*${diam}
 variable        R_sphere equal ${D_sphere}/2.0
-variable        h_drop   equal 8.0*${diam}
+variable        h_drop   equal 4.0*${diam}
 variable        x_sphere equal 0.5*${boxx}
 variable        y_sphere equal 0.5*${boxy}
 variable        z_sphere equal ${bed_top}+${R_sphere}+${h_drop}
@@ -129,7 +124,7 @@ group           projectile type 3
 group           mobile union grains projectile
 
 # Vitesse initiale vers le bas
-variable        impact_factor equal 4.0
+variable        impact_factor equal 3.0
 variable        v_impact equal ${impact_factor}*sqrt(2.0*${grav}*${h_drop})
 velocity        projectile set 0.0 0.0 -${v_impact} units box
 
@@ -139,14 +134,18 @@ compute         tbond all reduce sum c_nbond
 thermo_style    custom step atoms ke c_tbond
 thermo          ${n_print}
 
-dump            d_impact all custom ${n_dump} data/impact_grid_random_from_CI.dump id x y z vx vy vz c_nbond
+dump            d_impact all custom ${n_dump} data/impact_grid_random_from_CI.dump id type radius x y z vx vy vz c_nbond
 dump_modify     d_impact sort id
 
 fix             int_mobile mobile nve/bpm/sphere
 fix             grav_mobile mobile gravity ${grav} vector 0 0 -1
 
 print "---------------> SOUS-SIMULATION 2 : IMPACT DEPUIS CONDITION INITIALE <---------------"
-run             25000
+# variable       t_ad_relax equal 3.0
+# variable        tim_0    equal sqrt(${diam}/${grav})
+# variable        Nrelax   equal 2*ceil(${t_ad_relax}*${tim_0}/${dt})
+# run             ${Nrelax}
+run 25000
 
 write_data /home/stages/Documents/lammps_examples/essai_5/data/final_after_impact_grid_random.data
 print "---------------> FIN SOUS-SIMULATION 2 : IMPACT TERMINE <---------------"
